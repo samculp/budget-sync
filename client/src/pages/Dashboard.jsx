@@ -24,8 +24,7 @@ export default function Dashboard() {
 
   // Calculate spent amount for each budget
   const getBudgetSpent = (budget) => {
-    return expenses
-      .filter(expense => expense.budgetId?._id === budget._id)
+    return budget.expenses
       .reduce((sum, expense) => sum + expense.amount, 0)
   }
 

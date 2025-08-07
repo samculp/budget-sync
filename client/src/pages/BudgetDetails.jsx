@@ -6,7 +6,7 @@ import { ArrowLeft, Edit, Trash2, Users, Plus, MoreVertical, X, LogOut } from 'l
 
 export default function BudgetDetails() {
   const { budgets, setBudgets, setExpenses } = useData()
-  const { authToken, apiBase } = useAuth()
+  const { authToken, apiBase, user } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
   const [activeMenu, setActiveMenu] = useState(null)
@@ -79,15 +79,38 @@ export default function BudgetDetails() {
 
   async function handleDeleteExpense(expenseId) {
     try {
-      const response = await fetch(`${apiBase}expenses/${expenseId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": authToken
-        }
-      })
-
-      // Get the expense being deleted to subtract its amount
+      // Get the expense being deleted to check ownership and subtract its amount
       const deletedExpense = localExpenses.find(e => e._id === expenseId)
+      if (!deletedExpense) throw new Error('Expense not found')
+
+      // Check if the expense belongs to a different user
+      const isOwnExpense = deletedExpense.userId === user._id
+
+      if (isOwnExpense) {
+        // Delete the expense entirely if it belongs to the current user
+        const response = await fetch(`${apiBase}expenses/${expenseId}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": authToken
+          }
+        })
+
+        if (!response.ok) throw new Error('Failed to delete expense')
+      } else {
+        // If expense belongs to another user, just remove it from the budget (set budgetId to null)
+        const response = await fetch(`${apiBase}expenses/${expenseId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authToken
+          },
+          body: JSON.stringify({
+            budgetId: null
+          })
+        })
+
+        if (!response.ok) throw new Error('Failed to remove expense from budget')
+      }
       
       // Update local expenses state
       setLocalExpenses(localExpenses.filter(e => e._id !== expenseId))
@@ -98,7 +121,7 @@ export default function BudgetDetails() {
         if (b._id === budget._id) {
           return {
             ...b,
-            expenses: b.expenses.filter(e => e !== expenseId),
+            expenses: b.expenses.filter(e => e._id !== expenseId),
             spent: b.spent - (deletedExpense?.amount || 0)
           }
         }
@@ -118,6 +141,7 @@ export default function BudgetDetails() {
         })
       })
 
+      // Refresh global expenses to reflect changes
       const expensesResult = await fetch(`${apiBase}expenses/`, {
         method: "GET",
         headers: {
@@ -166,7 +190,7 @@ export default function BudgetDetails() {
         if (b._id === id) {
           return {
             ...b,
-            expenses: [...b.expenses, createdExpense._id],
+            expenses: [...b.expenses, createdExpense],
             spent: newSpentAmount
           }
         }
@@ -227,6 +251,9 @@ export default function BudgetDetails() {
         if (b._id === id) {
           return {
             ...b,
+            expenses: b.expenses.map(expense => 
+              expense._id === editedExpense.expenseId ? updatedExpense : expense
+            ),
             spent: newTotalSpent
           }
         }
@@ -272,10 +299,10 @@ export default function BudgetDetails() {
         expenseResponse.json()
       ])
       
-      // Update global expenses state with the new expense data
+      // Update global expenses state with the updated expense data
       setExpenses(prevExpenses => 
         prevExpenses.map(expense => 
-          expense._id === editedExpense.expenseId ? expenseData : expense
+          expense._id === editedExpense.expenseId ? updatedExpense : expense
         )
       )
 
@@ -340,25 +367,18 @@ export default function BudgetDetails() {
       // If no expenses, return
       if (!budget?.expenses?.length) {
         setIsLoadingExpenses(false)
+        setLocalExpenses([])
         return
       }
 
-      try {
-        setIsLoadingExpenses(true)
-        // Get all expenses for budget
-        const expensePromises = budget.expenses.map(expenseId => 
-          fetch(`${apiBase}expenses/${expenseId}`, {
-            headers: {
-              "Authorization": authToken,
-            }
-          }).then(res => res.json())
-        )
-        
-        const expenseResults = await Promise.all(expensePromises)
-        setLocalExpenses(expenseResults)
+              try {
+          setIsLoadingExpenses(true)
+          // Since budget.expenses already contains expense objects, we can use them directly
+          console.log("Expenses: ", budget.expenses)
+          setLocalExpenses(budget.expenses)
 
-        // Calculate total spent from expenses
-        const totalSpent = expenseResults.reduce((sum, expense) => sum + expense.amount, 0)
+          // Calculate total spent from expenses
+          const totalSpent = budget.expenses.reduce((sum, expense) => sum + expense.amount, 0)
         
         // Only update if the spent amount has changed
         if (budget.spent !== totalSpent) {
@@ -409,7 +429,7 @@ export default function BudgetDetails() {
     }
     fetchExpenses()
     getCollaborators()
-  }, [id, authToken, apiBase, budget?.expenses])
+  }, [id, authToken, apiBase, budget])
 
 
   if (!budget) {

@@ -14,6 +14,7 @@ import Expenses from "./pages/Expenses"
 import Collaborate from "./pages/Collaborate"
 import Settings from "./pages/Settings"
 import NewInvite from './pages/NewInvite'
+
 export default function App() {
   const apiBase = import.meta.env.VITE_API_BASE
   return (

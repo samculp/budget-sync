@@ -6,7 +6,7 @@ import { Edit, Trash2, MoreVertical, Plus, Search, X } from 'lucide-react'
 
 export default function Expenses() {
   const navigate = useNavigate()
-  const { expenses, setExpenses, isLoading, budgets, setBudgets } = useData()
+  const { expenses, setExpenses, isLoadingData, budgets, setBudgets } = useData()
   const { authToken, apiBase } = useAuth()
   const [activeMenu, setActiveMenu] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -37,7 +37,6 @@ export default function Expenses() {
     try {
       // First, get the expense details before deleting
       const expenseToDelete = expenses.find(e => e._id === expenseId)
-      console.log("1. Expense to delete:", expenseToDelete)
       if (!expenseToDelete) throw new Error('Expense not found')
 
       // Delete the expense
@@ -53,16 +52,12 @@ export default function Expenses() {
       // Update local expenses state
       setExpenses(expenses.filter(e => e._id !== expenseId))
       
-      // If the deleted expense had a budget, update the budget's spent amount
+      // If the deleted expense had a budget, update the budget's spent amount and expenses array
       if (expenseToDelete.budgetId) {
-        console.log("2. Budget ID:", expenseToDelete.budgetId)
-        console.log("2.1 All budgets:", budgets)
         // Find the budget in the budgets array
         const budgetIndex = budgets.findIndex(b => b._id === expenseToDelete.budgetId)
-        console.log("2.2 Budget index:", budgetIndex)
         if (budgetIndex !== -1) {
           const updatedSpent = (budgets[budgetIndex].spent || 0) - expenseToDelete.amount
-          console.log("2.3 Updated spent amount:", updatedSpent)
           
           // Update the budget on the server
           const budgetResponse = await fetch(`${apiBase}budgets/${expenseToDelete.budgetId}`, {
@@ -77,11 +72,13 @@ export default function Expenses() {
           if (!budgetResponse.ok) throw new Error('Failed to update budget')
           
           const updatedBudget = await budgetResponse.json()
-          console.log("2.4 Updated budget from server:", updatedBudget)
           
-          // Update the budget in the budgets array
+          // Update the budget in the budgets array - remove the expense from the expenses array
           setBudgets(budgets.map(b => 
-            b._id === updatedBudget._id ? updatedBudget : b
+            b._id === updatedBudget._id ? {
+              ...updatedBudget,
+              expenses: b.expenses.filter(e => e._id !== expenseToDelete._id)
+            } : b
           ))
         }
       }
@@ -94,9 +91,7 @@ export default function Expenses() {
 
   async function handleAddExpense(e) {
     e.preventDefault()
-    try {
-      console.log("1. New expense data:", newExpense)
-      
+    try {      
       const response = await fetch(`${apiBase}expenses`, {
         method: 'POST',
         headers: {
@@ -114,24 +109,18 @@ export default function Expenses() {
       if (!response.ok) throw new Error('Failed to create expense')
       
       const createdExpense = await response.json()
-      console.log("2. Created expense:", createdExpense)
       
       // Update local expenses state
       setExpenses([...expenses, createdExpense])
       
-      // If expense has a budget, update the budget's spent amount on the server
-      if (createdExpense.budgetId) {
-        console.log("3. Budget ID:", createdExpense.budgetId)
-        console.log("3.1 All budgets:", budgets)
-        
+      // If expense has a budget, update the budget's spent amount and expenses array
+      if (createdExpense.budgetId) {        
         // Find the budget in the budgets array
         const budgetIndex = budgets.findIndex(b => b._id === createdExpense.budgetId)
-        console.log("3.2 Budget index:", budgetIndex)
         
         if (budgetIndex !== -1) {
           const updatedSpent = (budgets[budgetIndex].spent || 0) + createdExpense.amount
-          console.log("3.3 Updated spent amount:", updatedSpent)
-          
+        
           // Update the budget on the server
           const budgetResponse = await fetch(`${apiBase}budgets/${createdExpense.budgetId}`, {
             method: 'PUT',
@@ -145,11 +134,13 @@ export default function Expenses() {
           if (!budgetResponse.ok) throw new Error('Failed to update budget')
           
           const updatedBudget = await budgetResponse.json()
-          console.log("3.4 Updated budget from server:", updatedBudget)
           
-          // Update the budget in the budgets array
+          // Update the budget in the budgets array - add the new expense to the expenses array
           setBudgets(budgets.map(b => 
-            b._id === updatedBudget._id ? updatedBudget : b
+            b._id === updatedBudget._id ? {
+              ...updatedBudget,
+              expenses: [...b.expenses, createdExpense]
+            } : b
           ))
         }
       }
@@ -215,9 +206,12 @@ export default function Expenses() {
         
         const updatedBudget = await budgetResponse.json()
         
-        // Update the budget in the budgets array
+        // Update the budget in the budgets array - update the expense in the expenses array
         setBudgets(budgets.map(b => 
-          b._id === updatedBudget._id ? updatedBudget : b
+          b._id === updatedBudget._id ? {
+            ...updatedBudget,
+            expenses: b.expenses.map(e => e._id === updatedExpense._id ? updatedExpense : e)
+          } : b
         ))
       }
 
@@ -284,7 +278,7 @@ export default function Expenses() {
 
       <div className="bg-white rounded-lg shadow-md p-6 border-1 border-solid border-gray-300">
         <div className="overflow-x-auto">
-          {isLoading ? (
+          {isLoadingData ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
               <p className="mt-2 text-gray-600">Loading expenses...</p>
@@ -340,7 +334,6 @@ export default function Expenses() {
                                     category: expense.category,
                                     expenseId: expense._id
                                   }
-                                  console.log("New edited expense:", newEditedExpense)
                                   setEditedExpense(newEditedExpense)
                                   setShowEditExpenseModal(true)
                                 }}

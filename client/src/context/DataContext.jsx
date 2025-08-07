@@ -18,6 +18,29 @@ export default function DataProvider(props) {
   const [settings, setSettings] = useState({})
   const [isLoadingData, setIsLoadingData] = useState(true)
 
+  // Function to fetch expenses for a specific budget
+  const fetchBudgetExpenses = async (budget) => {
+    try {
+      // Fetch all expenses for this budget using the budget-specific endpoint
+      const response = await fetch(`${apiBase}expenses/budget/${budget._id}`, {
+        headers: {
+          "Authorization": authToken,
+        }
+      })
+      
+      if (response.ok) {
+        const expenseResults = await response.json()
+        return expenseResults
+      } else {
+        console.error('Error fetching expenses for budget:', budget._id)
+        return []
+      }
+    } catch (error) {
+      console.error('Error fetching expenses for budget:', budget._id, error)
+      return []
+    }
+  }
+
   // get user data upon authentication
   useEffect(() => {
     async function fetchData() {
@@ -46,12 +69,25 @@ export default function DataProvider(props) {
               "Authorization": authToken,
             }
           })
-          const collaboratorsResult = null
-          const settingsResult = null
 
-          setBudgets(await budgetResult.json())
-          setExpenses(await expensesResult.json())
-          setInvites(await invitesResult.json())
+          const budgetsData = await budgetResult.json()
+          const expensesData = await expensesResult.json()
+          const invitesData = await invitesResult.json()
+
+          // Fetch expenses for each budget and populate the expenses array
+          const budgetsWithExpenses = await Promise.all(
+            budgetsData.map(async (budget) => {
+              const budgetExpenses = await fetchBudgetExpenses(budget)
+              return {
+                ...budget,
+                expenses: budgetExpenses // Replace expense IDs with actual expense objects
+              }
+            })
+          )
+
+          setBudgets(budgetsWithExpenses)
+          setExpenses(expensesData)
+          setInvites(invitesData)
 
         } catch (error) {
           console.error(error.message)

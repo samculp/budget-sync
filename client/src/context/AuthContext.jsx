@@ -38,7 +38,7 @@ export default function AuthProvider(props) {
           }
         })
         const userData = await userResponse.json()
-        setUser({ name: userData.name, email: userData.email })
+        setUser({ _id: userData._id, name: userData.name, email: userData.email })
       } else {
         setErrorMessage(data.error)
         throw Error(data.error || "Failed to authenticate")
@@ -77,7 +77,7 @@ export default function AuthProvider(props) {
             }
           })
           const userData = await userResponse.json()
-          setUser({ name: userData.name, email: userData.email })
+          setUser({ _id: userData._id, name: userData.name, email: userData.email })
         } else {
           localStorage.setItem('serverRebootId', serverRebootId)
           logout()
