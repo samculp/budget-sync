@@ -7,13 +7,12 @@ const uri = process.env.MONGO_URI || ""
 
 async function db() {
   try {
-    console.log("MONGODB URI: ", uri)
     await mongoose.connect(uri, {
       dbName: "expense-tracker"
     })
-    console.log("✅ MongoDB Connected")
+    console.log("MongoDB connected successfully!")
   } catch (error) {
-    console.error("❌ MongoDB Connection Error: ", error)
+    console.error("MongoDB connection error: ", error)
   }
 }
 
